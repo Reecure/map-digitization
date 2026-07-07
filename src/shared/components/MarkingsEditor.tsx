@@ -1,5 +1,4 @@
 'use client'
-// components/MarkingsEditor.tsx
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import maplibregl from 'maplibre-gl'
@@ -9,96 +8,20 @@ import type {Feature, FeatureCollection, Geometry, Position} from 'geojson'
 import {
     TOOLS, CATEGORIES, toolById, fieldsForKind, DIRS,
     PALETTE as C, type ToolSpec, type FieldSpec,
-} from '@/lib/markings/schema'
+} from '@/src/shared/lib/markings/schema'
 import {
     buildMarkingLayers, registerImages, KIND_LAYERS, OPACITY_TARGETS, islandOpacity,
-} from '@/lib/markings/layers'
+} from '@/src/shared/lib/markings/layers'
+import {BASEMAPS, EMPTY, MarkingProps, MF} from "@/src/types";
+import {bearingBetween, featureAnchor, featureMidpoints, featureVertices} from "@/src/shared/helpers";
+import {DirIcon, EyeIcon} from "@/src/shared/icons";
 
-/* ─── types ─── */
-export interface MarkingProps {
-    _id: number
-    kind: string
-    style?: string
-    width_m?: number
-    dir?: string
-    bearing?: number
-    code?: string
-}
-type MF = Feature<Geometry, MarkingProps>
-type LngLat = {lng: number; lat: number}
+export const LIST_LIMIT = 200
 
-const EMPTY: FeatureCollection = {type: 'FeatureCollection', features: []}
-const BASEMAPS = [['esri', 'Esri'], ['google', 'Google'], ['osm', 'OSM'], ['none', 'Темна']] as const
-const LIST_LIMIT = 200
-
-/* ─── helpers ─── */
-const bearingBetween = (a: LngLat, b: LngLat): number => {
-    const r = (d: number) => (d * Math.PI) / 180
-    const y = Math.sin(r(b.lng - a.lng)) * Math.cos(r(b.lat))
-    const x = Math.cos(r(a.lat)) * Math.sin(r(b.lat)) -
-        Math.sin(r(a.lat)) * Math.cos(r(b.lat)) * Math.cos(r(b.lng - a.lng))
-    return Math.round(((Math.atan2(y, x) * 180) / Math.PI + 360) % 360)
-}
-
-const featureAnchor = (f: MF): Position => {
-    const g = f.geometry
-    if (g.type === 'Point') return g.coordinates
-    if (g.type === 'LineString') return g.coordinates[0]
-    if (g.type === 'Polygon') return g.coordinates[0][0]
-    return [0, 0]
-}
-
-const featureVertices = (f: MF): Position[] => {
-    const g = f.geometry
-    if (g.type === 'Point') return [g.coordinates]
-    if (g.type === 'LineString') return g.coordinates
-    if (g.type === 'Polygon') return g.coordinates[0].slice(0, -1)
-    return []
-}
-
-/** середини сегментів: [позиція, індекс вставки] */
-const featureMidpoints = (f: MF): Array<[Position, number]> => {
-    const g = f.geometry
-    const mid = (a: Position, b: Position): Position => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-    if (g.type === 'LineString')
-        return g.coordinates.slice(0, -1).map((c, i) => [mid(c, g.coordinates[i + 1]), i + 1])
-    if (g.type === 'Polygon') {
-        const ring = g.coordinates[0]
-        return ring.slice(0, -1).map((c, i) => [mid(c, ring[i + 1]), i + 1])
-    }
-    return []
-}
-
-/* маленькі SVG-іконки напрямків стрілок */
-const DIR_PATHS: Record<string, string> = {
-    through: 'M12 20V7M12 4l-4 5h8z',
-    left: 'M12 20v-8c0-2 -1-3 -3-3H7M8 12L4 9l4-3',
-    right: 'M12 20v-8c0-2 1-3 3-3h2M16 12l4-3-4-3',
-    through_left: 'M12 20V7M12 4l-3 4h6zM11 13c-2 0-3-1-4-1H6M7.5 14.5L4 12l3.5-2.5',
-    through_right: 'M12 20V7M12 4l-3 4h6zM13 13c2 0 3-1 4-1h1M16.5 14.5L20 12l-3.5-2.5',
-}
-const DirIcon = ({dir}: {dir: string}) => (
-    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none"
-         stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
-        <path d={DIR_PATHS[dir]}/>
-    </svg>
-)
-
-const EyeIcon = ({off}: {off: boolean}) => (
-    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none"
-         stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-        {off
-            ? <><path d="M3 3l18 18M10.5 5.2A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7-.4 1-1.3 2.4-2.6 3.7M6.6 6.6C4.1 8.1 2.5 10.4 2 12c1 2.5 5 7 10 7 1.5 0 2.9-.4 4.2-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></>
-            : <><path d="M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z"/><circle cx="12" cy="12" r="3"/></>}
-    </svg>
-)
-
-/* ═══════════════ component ═══════════════ */
 export default function MarkingsEditor() {
     const mapRef = useRef<MaplibreMap | null>(null)
     const containerRef = useRef<HTMLDivElement | null>(null)
 
-    /* стан для рендера (у JSX — ТІЛЬКИ він, ніяких refs) */
     const [features, setFeatures] = useState<MF[]>([])
     const [toolId, setToolId] = useState<string | null>(null)
     const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -110,7 +33,6 @@ export default function MarkingsEditor() {
     const [query, setQuery] = useState('')
     const [mapReady, setMapReady] = useState(false)
 
-    /* дзеркала для обробників карти (оновлюються ефектами, у рендері не читаються) */
     const featuresRef = useRef<MF[]>(features)
     const toolIdRef = useRef<string | null>(toolId)
     const selectedIdRef = useRef<number | null>(selectedId)
@@ -118,7 +40,6 @@ export default function MarkingsEditor() {
     useEffect(() => { toolIdRef.current = toolId }, [toolId])
     useEffect(() => { selectedIdRef.current = selectedId }, [selectedId])
 
-    /* транзієнтний стан малювання — не викликає рендерів */
     const draw = useRef<{
         pts: Position[]
         pendingPoint: Position | null
@@ -127,7 +48,6 @@ export default function MarkingsEditor() {
         uid: number
     }>({pts: [], pendingPoint: null, drag: null, raf: 0, uid: 1})
 
-    /* ─── map plumbing ─── */
     const setSourceData = useCallback((id: string, data: FeatureCollection | Feature) => {
         const s = mapRef.current?.getSource(id) as GeoJSONSource | undefined
         s?.setData(data)
@@ -162,14 +82,12 @@ export default function MarkingsEditor() {
             : EMPTY)
     }, [setSourceData])
 
-    /* ─── синхронізація стану → карта ─── */
     useEffect(() => { pushToMap(features) }, [features, pushToMap])
     useEffect(() => {
         mapRef.current?.setFilter('sel', ['==', ['get', '_id'], selectedId ?? -1])
         renderEditPts(features, selectedId, toolId)
     }, [selectedId, features, toolId, renderEditPts])
 
-    /* прозорість полотна */
     useEffect(() => {
         const m = mapRef.current
         if (!m || !mapReady) return
@@ -179,7 +97,6 @@ export default function MarkingsEditor() {
         if (m.getLayer('rm-island')) m.setPaintProperty('rm-island', 'fill-opacity', islandOpacity(k))
     }, [fillOpacity, mapReady])
 
-    /* видимість по kind */
     useEffect(() => {
         const m = mapRef.current
         if (!m || !mapReady) return
@@ -188,7 +105,6 @@ export default function MarkingsEditor() {
                 m.setLayoutProperty(id, 'visibility', hiddenKinds.has(kind) ? 'none' : 'visible')))
     }, [hiddenKinds, mapReady])
 
-    /* підкладка */
     useEffect(() => {
         const m = mapRef.current
         if (!m || !mapReady) return
@@ -197,7 +113,6 @@ export default function MarkingsEditor() {
             m.setLayoutProperty('base-' + b, 'visibility', b === basemap ? 'visible' : 'none'))
     }, [basemap, mapReady])
 
-    /* ─── створення фіч ─── */
     const createFeature = useCallback((geometry: Geometry, tool: ToolSpec, extra: Partial<MarkingProps> = {}) => {
         const props: MarkingProps = {
             _id: draw.current.uid++,
@@ -227,7 +142,6 @@ export default function MarkingsEditor() {
             createFeature({type: 'LineString', coordinates: pts}, tool)
     }, [createFeature, setDraft])
 
-    /* ─── init map (once) ─── */
     useEffect(() => {
         if (!containerRef.current || mapRef.current) return
 
@@ -286,7 +200,6 @@ export default function MarkingsEditor() {
         map.doubleClickZoom.disable()
 
         map.on('error', ev => {
-            // німих чорних екранів більше нема: все у консоль
             console.error('[markings-editor] map error:', ev.error ?? ev)
         })
         map.on('load', () => {
@@ -530,7 +443,6 @@ export default function MarkingsEditor() {
         if (m) m.flyTo({center: featureAnchor(f) as [number, number], zoom: Math.max(m.getZoom(), 17)})
     }
 
-    /* ─── похідні для рендера ─── */
     const selected = useMemo(
         () => features.find(f => f.properties._id === selectedId) ?? null,
         [features, selectedId])
@@ -549,7 +461,6 @@ export default function MarkingsEditor() {
     }, [features, query])
     const visibleList = filtered.slice(-LIST_LIMIT).reverse()
 
-    /* ═══════════════ UI ═══════════════ */
     return (
         <div className="fixed inset-0 bg-[#0a0c12] text-slate-200 font-sans">
             <style>{`
@@ -693,7 +604,7 @@ export default function MarkingsEditor() {
                 <div className="px-4 pb-4 border-b border-white/[.06]">
                     {!selected ? (
                         <div className="text-xs text-slate-500 py-2">
-                            Оберіть об'єкт на карті або інструмент зліва
+                            Оберіть об&#39;єкт на карті або інструмент зліва
                         </div>
                     ) : (
                         <AttrForm feature={selected} onChange={updateProp} onDelete={deleteSelected}/>
@@ -701,7 +612,7 @@ export default function MarkingsEditor() {
                 </div>
 
                 <div className="px-4 pt-3 pb-2 flex items-center gap-2">
-                    <span className="text-[11px] uppercase tracking-widest text-slate-500">Об'єкти</span>
+                    <span className="text-[11px] uppercase tracking-widest text-slate-500">Об&#39;єкти</span>
                     <input value={query} onChange={e => setQuery(e.target.value)} placeholder="пошук…"
                            className="ml-auto w-32 bg-[#151a28] border border-white/10 rounded-lg px-2 py-1
                                       text-xs focus:border-blue-500/60 outline-none"/>
@@ -738,7 +649,6 @@ export default function MarkingsEditor() {
     )
 }
 
-/* ─── форма атрибутів ─── */
 function AttrForm({feature, onChange, onDelete}: {
     feature: MF
     onChange: (name: keyof MarkingProps, value: string | number | undefined) => void

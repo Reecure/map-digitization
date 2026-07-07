@@ -18,14 +18,12 @@ const kis = (k: string): ExpressionSpecification => ['==', ['get', 'kind'], k]
 const styleIs = (s: string): ExpressionSpecification => ['==', ['get', 'style'], s]
 const styleNot = (s: string): ExpressionSpecification => ['!=', ['get', 'style'], s]
 
-/** kind → id шарів, які його малюють (для тоглів видимості) */
 export const KIND_LAYERS: Record<string, string[]> = {
     tunnel: ['rm-tunnel', 'rm-tunnel-o'],
     roadbed: ['rm-roadbed', 'rm-curb'],
     bridge: ['rm-bridge', 'rm-bridge-e'],
     median: ['rm-median', 'rm-median-e'],
     green: ['rm-green', 'rm-green-e'],
-    bus_lane: ['rm-bus-lane'],
     tram: ['rm-tram'],
     bus_stop: ['rm-bus-stop'],
     hatch: ['rm-hatch', 'rm-hatch-o'],
@@ -33,12 +31,12 @@ export const KIND_LAYERS: Record<string, string[]> = {
     island: ['rm-island', 'rm-island-o', 'rm-island-od'],
     divider: ['rm-div-d', 'rm-div-s', 'rm-div-2o', 'rm-div-2i'],
     stop_line: ['rm-stop'],
-    give_way: ['rm-giveway'],
     speed_bump: ['rm-bump', 'rm-bump-d'],
     crosswalk: ['rm-cross'],
     arrow: ['rm-arrows'],
     bus_mark: ['rm-busmark'],
     sign: ['rm-signs'],
+    concrete_barrier: ['rm-barrier-outline', 'rm-barrier'],
 }
 
 export const OPACITY_TARGETS: Record<string, number> = {
@@ -63,8 +61,6 @@ export function buildMarkingLayers(source: string): LayerSpecification[] {
         {id: 'rm-median-e', type: 'line', filter: kis('median'), paint: {'line-color': C.curb, 'line-width': mC(.25)}},
         {id: 'rm-green', type: 'fill', filter: kis('green'), paint: {'fill-color': C.green}},
         {id: 'rm-green-e', type: 'line', filter: kis('green'), paint: {'line-color': C.curb, 'line-width': mC(.2)}},
-        {id: 'rm-bus-lane', type: 'line', filter: kis('bus_lane'),
-            paint: {'line-color': C.busTint, 'line-width': mW(3.5), 'line-opacity': .28}},
         {id: 'rm-tram', type: 'line', filter: kis('tram'),
             paint: {'line-color': C.tram, 'line-width': mC(.08), 'line-gap-width': mC(1.52)}},
         {id: 'rm-bus-stop', type: 'line', filter: kis('bus_stop'),
@@ -87,8 +83,6 @@ export function buildMarkingLayers(source: string): LayerSpecification[] {
         {id: 'rm-div-2i', type: 'line', filter: ['all', kis('divider'), styleIs('double')],
             paint: {'line-color': C.roadbed, 'line-width': mC(.2)}},
         {id: 'rm-stop', type: 'line', filter: kis('stop_line'), paint: {'line-color': C.mark, 'line-width': mW(.5)}},
-        {id: 'rm-giveway', type: 'line', filter: kis('give_way'),
-            paint: {'line-color': C.mark, 'line-width': mW(.5), 'line-dasharray': [1.2, .8]}},
         {id: 'rm-bump', type: 'line', filter: kis('speed_bump'), paint: {'line-color': C.yellow, 'line-width': mW(.6)}},
         {id: 'rm-bump-d', type: 'line', filter: kis('speed_bump'),
             paint: {'line-color': C.mark, 'line-width': mW(.6), 'line-dasharray': [.8, .8]}},
@@ -117,6 +111,20 @@ export function buildMarkingLayers(source: string): LayerSpecification[] {
                 'text-size': 11, 'text-allow-overlap': true,
             },
             paint: {'text-color': '#0a0c12', 'text-halo-color': '#ffffff', 'text-halo-width': 6}},
+        {
+            id: 'rm-barrier-outline', type: 'line', filter: kis('concrete_barrier'),
+            paint: {
+                'line-color': C.curb,
+                'line-width': mW(1)
+            }
+        },
+        {
+            id: 'rm-barrier', type: 'line', filter: kis('concrete_barrier'),
+            paint: {
+                'line-color': '#c4c9d6',
+                'line-width': mW(0.7)
+            }
+        },
     ]
     return defs.map(l => ({...l, source})) as LayerSpecification[]
 }

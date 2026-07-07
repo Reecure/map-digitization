@@ -1,6 +1,3 @@
-// lib/markings/schema.ts
-// Каталог інструментів редактора: категорії, підказки, поля атрибутів.
-
 export type Geometry = 'polygon' | 'line' | 'point'
 
 export type FieldSpec = {
@@ -18,11 +15,11 @@ export type ToolSpec = {
     geometry: Geometry
     label: string
     category: string
-    hint: string[]              // поетапна підказка
-    color: string               // кружечок у меню
+    hint: string[]
+    color: string
     fields: FieldSpec[]
     presetProps?: Record<string, string | number>
-    twoClickBearing?: boolean   // точка ставиться двома кліками: позиція → напрямок
+    twoClickBearing?: boolean
 }
 
 export const DIRS = ['through', 'left', 'right', 'through_left', 'through_right'] as const
@@ -32,7 +29,6 @@ const W = (d: number, req = false): FieldSpec =>
 const BEARING: FieldSpec = {name: 'bearing', type: 'bearing', required: true, label: 'Азимут'}
 
 export const TOOLS: ToolSpec[] = [
-    // ── Полотно ────────────────────────────────────────────────
     {
         id: 'roadbed', kind: 'roadbed', geometry: 'polygon', category: 'Полотно',
         label: 'Проїжджа частина', color: '#8e99b3', fields: [],
@@ -77,13 +73,21 @@ export const TOOLS: ToolSpec[] = [
     },
     {
         id: 'hatch', kind: 'hatch', geometry: 'polygon', category: 'Полотно',
-        label: 'Штрихована зона 1.16', color: '#f0f3f8', fields: [],
+        label: 'Штрихована зона', color: '#f0f3f8', fields: [],
         hint: ['Зони заборони / напрямні острівці фарбою', 'Штриховку малює стиль — тільки контур'],
     },
     {
         id: 'waffle', kind: 'waffle', geometry: 'polygon', category: 'Полотно',
         label: 'Вафельниця', color: '#e3c04b', fields: [],
         hint: ['Жовта сітка на перехресті — полігон по зоні'],
+    },
+    {
+        id: 'concrete_barrier', kind: 'concrete_barrier', geometry: 'line', category: 'Полотно',
+        label: 'Бетонне огородження', color: '#c4c9d6', fields: [W(0.5)],
+        hint: [
+            'Лінія вздовж осі огородження',
+            'width_m = загальна ширина блоку (зазвичай 0.4–0.6 м)'
+        ],
     },
 
     // ── Лінії розмітки ────────────────────────────────────────
@@ -113,11 +117,6 @@ export const TOOLS: ToolSpec[] = [
         hint: ['Дві точки поперек смуг ОДНОГО напрямку', 'Від крайки до осьової, ~1 м до переходу'],
     },
     {
-        id: 'give_way', kind: 'give_way', geometry: 'line', category: 'Лінії',
-        label: 'Поступись 1.13', color: '#f0f3f8', fields: [W(0.5)],
-        hint: ['Там, де на асфальті трикутники поперек смуги'],
-    },
-    {
         id: 'crosswalk', kind: 'crosswalk', geometry: 'line', category: 'Лінії',
         label: 'Зебра', color: '#f0f3f8', fields: [W(4, true)],
         hint: ['ВІСЬ переходу поперек дороги: бордюр → бордюр',
@@ -132,20 +131,15 @@ export const TOOLS: ToolSpec[] = [
 
     // ── Транспорт ─────────────────────────────────────────────
     {
-        id: 'bus_lane', kind: 'bus_lane', geometry: 'line', category: 'Транспорт',
-        label: 'Смуга ГТ', color: '#b8434f', fields: [W(3.5)],
-        hint: ['Вісь смуги ВЗДОВЖ руху', 'Тонування і літери «А» вздовж — стиль сам'],
-    },
-    {
         id: 'bus_stop', kind: 'bus_stop', geometry: 'line', category: 'Транспорт',
-        label: 'Зона зупинки 1.17', color: '#e3c04b', fields: [W(3)],
+        label: 'Зона зупинки', color: '#e3c04b', fields: [W(3)],
         hint: ['Лінія вздовж борта по довжині зупинного кармана'],
     },
     {
         id: 'tram', kind: 'tram', geometry: 'line', category: 'Транспорт',
         label: 'Трамвайна колія', color: '#5d6884', fields: [],
         hint: ['Одна лінія по ОСІ колії (дві колії = дві лінії)',
-            'Через перехрестя НЕ розривати', 'Обидві рейки малює стиль (колія 1524 мм)'],
+            'Через перехрестя НЕ розривати', 'Обидві рейки малює стиль'],
     },
 
     // ── Точкові ───────────────────────────────────────────────
